@@ -40,4 +40,19 @@ Removing LayerNorm normally breaks activation scaling, which saturates the softm
 28. Mentee Reflection
 
 Hardest part: Deriving the Softmax Jacobian and attention gradients by hand. Wrangling the indices for the Kronecker delta and executing the summation expansions required a lot of careful matrix calculus.
-What clicked unexpectedly: Analyzing the results of Variant 3. I expected removing LayerNorm to break the model entirely. Seeing it survive perfectly proved to me that architectural requirements are contextual—shallow networks can get away with missing stabilizers that would instantly break a massive LLM!
+
+What clicked unexpectedly:
+
+Analyzing the results of Variant 3. I expected removing LayerNorm to break the model entirely. Seeing it survive perfectly proved to me that architectural requirements are contextual; shallow networks can get away with missing stabilizers that would instantly break a massive LLM
+
+29. Dataset Scale: Tiny Shakespeare vs. Massive Text Corpora
+
+Our model was trained on the "Tiny Shakespeare" dataset, which is roughly 1MB of text. Training on a toy dataset like this fundamentally changes the dynamics of machine learning compared to training modern LLMs on terabyte-scale, real-world internet data:
+
+Overfitting vs. Underfitting: With only 1MB of text, our 0.82M parameter model is at a high risk of overfitting (memorizing the exact plays rather than learning general language rules). This is why aggressive regularization, like our 20% Dropout rate, is required. For massive datasets, models rarely see the same exact text twice. Underfitting becomes the bigger concern, which is why modern massive LLMs often reduce or completely eliminate dropout to maximize model capacity.
+
+Learning Rate Schedules: We successfully used a constant learning rate. If we were training a 70-billion parameter model on trillions of tokens, a constant learning rate would cause the optimizer to make violently unstable updates, and the gradients would explode. Large-scale training mandates a "Warmup + Cosine Decay" schedule to carefully guide the optimizer over months of training.
+
+Architectural Forgiveness: Our ablation study showed the model surviving without LayerNorm. Small datasets and shallow architectures are highly forgiving of numerical variance. If we scaled up to a massive dataset using a 96-layer architecture, removing LayerNorm would cause the activations to explode to infinity within the first few hundred steps, completely crashing the training run.
+
+Emergent Properties: On Tiny Shakespeare, predicting the next token limits the model to learning formatting (e.g., character names, colons, newlines) and basic old-English vocabulary. On a massive, diverse dataset (like Common Crawl or Wikipedia), predicting the next token forces the model to implicitly learn world facts, logic, coding, and translation—emergent capabilities that simply cannot arise from 1MB of dialogue.
